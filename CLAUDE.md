@@ -2,6 +2,9 @@
 
 Newborn vaccination schedule app (India). Requirements live in [docs/PROJECT_CONTEXT.md](docs/PROJECT_CONTEXT.md) – read it before adding features, and update its "Implementation notes" section when the code diverges from the spec.
 
+## Git workflow
+Branches: `prod` (production) and `beta` (testing). New features are branched from `beta` as `feature/<name>`, merged into `beta` by PR, and only promoted `beta` → `prod` after beta testing is done. Never commit directly to `prod` or `beta`. Full rules in [docs/BRANCHING.md](docs/BRANCHING.md).
+
 ## Layout
 - `backend/` – NestJS 11 + Prisma 6 + PostgreSQL REST API (the only part built so far).
 - `docs/` – project reference.
