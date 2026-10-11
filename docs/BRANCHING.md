@@ -17,10 +17,13 @@ feature/x ──PR──▶ beta ──(beta testing passes)──PR──▶ pr
 ```
 
 1. Branch from `beta`: `git switch beta && git pull && git switch -c feature/<name>`
-2. Commit, push, open a PR **into `beta`**. CI (build, lint, unit + e2e tests) must pass. Squash-merge.
-3. `beta` is deployed to the beta environment and tested (QA / UAT).
-4. When beta testing is done, open a PR **`beta` → `prod`** and merge with a **merge commit** (not squash, so the two branches don't drift apart).
-5. Tag the release on `prod`: `git tag v0.2.0 && git push --tags`, then deploy.
+2. Build the feature and **test it on the feature branch** (unit + e2e tests, manual check). Don't merge until it works.
+3. Open a PR **into `beta`**. CI (build, lint, unit + e2e tests) must pass. Squash-merge.
+4. `beta` now holds all finished features. It is deployed to the beta environment and **tested together** (QA / UAT).
+5. When beta testing is done, open a PR **`beta` → `prod`** and merge with a **merge commit** (not squash, so the two branches don't drift apart).
+6. Tag the release on `prod`: `git tag v0.2.0 && git push --tags`, then deploy.
+
+Bugs found during beta testing are fixed on a `fix/<name>` branch from `beta` and merged back into `beta`.
 
 ## Hotfix flow (production is broken)
 
