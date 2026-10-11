@@ -1,0 +1,250 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  HOSPITAL_ADMIN
+  DOCTOR
+  RECEPTIONIST
+  PARENT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum HospitalStatus {
+  PENDING
+  VERIFIED
+  ACTIVE
+  SUSPENDED
+}
+
+enum ScheduleStatus {
+  PENDING
+  ADMINISTERED
+  MISSED
+  TRANSFERRED
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum NotificationType {
+  THREE_DAY_REMINDER
+  SLOT_BOOKED
+  SLOT_CANCELLED
+  MANUAL_ALERT
+  DOCTOR_ALERT
+  CHECK_IN
+}
+
+enum NotificationChannel {
+  PUSH
+  SMS
+  IN_APP
+}
+
+enum NotificationStatus {
+  SENT
+  FAILED
+  READ
+}
+
+model Hospital {
+  id             String         @id @default(uuid())
+  name           String
+  address        String?
+  city           String?
+  pincode        String?
+  phone          String?
+  email          String?        @unique
+  registrationNo String?        @unique
+  status         HospitalStatus @default(PENDING)
+  onboardedAt    DateTime?
+  adminNotes     String?
+  createdAt      DateTime       @default(now())
+
+  users          User[]
+  babies         Baby[]
+  availableSlots AvailableSlot[]
+
+  @@map("hospitals")
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  name               String
+  username           String   @unique
+  email              String?  @unique
+  phone              String?
+  passwordHash       String
+  mustChangePassword Boolean  @default(false)
+  role               Role
+  hospitalId         String?
+  language           String   @default("en")
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  hospital      Hospital?      @relation(fields: [hospitalId], references: [id])
+  doctorBabies  Baby[]         @relation("BabyDoctor")
+  parentBabies  Baby[]         @relation("BabyParent")
+  bookings      SlotBooking[]
+  notifications Notification[]
+  refreshTokens RefreshToken[]
+  deviceTokens  DeviceToken[]
+
+  @@index([hospitalId, role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  fcmToken  String   @unique
+  platform  String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+model Baby {
+  id            String   @id @default(uuid())
+  fullName      String
+  dateOfBirth   DateTime @db.Date
+  gender        Gender
+  bloodGroup    String?
+  birthWeightKg Decimal? @db.Decimal(4, 2)
+  wardNumber    String?
+  hospitalId    String
+  doctorId      String
+  parentId      String
+  createdAt     DateTime @default(now())
+
+  hospital Hospital              @relation(fields: [hospitalId], references: [id])
+  doctor   User                  @relation("BabyDoctor", fields: [doctorId], references: [id])
+  parent   User                  @relation("BabyParent", fields: [parentId], references: [id])
+  schedule VaccinationSchedule[]
+
+  @@index([hospitalId])
+  @@index([doctorId])
+  @@index([parentId])
+  @@map("babies")
+}
+
+model Vaccine {
+  id              String  @id @default(uuid())
+  name            String  @unique
+  disease         String
+  doseNumber      Int     @default(1)
+  totalDoses      Int     @default(1)
+  ageOffsetDays   Int
+  minIntervalDays Int?
+  maxAgeDays      Int?
+  isActive        Boolean @default(true)
+
+  schedule VaccinationSchedule[]
+
+  @@map("vaccines")
+}
+
+model VaccinationSchedule {
+  id               String         @id @default(uuid())
+  babyId           String
+  vaccineId        String
+  dueDate          DateTime       @db.Date
+  status           ScheduleStatus @default(PENDING)
+  administeredDate DateTime?      @db.Date
+  administeredBy   String?
+  notes            String?
+  notified3Day     Boolean        @default(false)
+  isCatchUp        Boolean        @default(false)
+
+  baby     Baby          @relation(fields: [babyId], references: [id], onDelete: Cascade)
+  vaccine  Vaccine       @relation(fields: [vaccineId], references: [id])
+  bookings SlotBooking[]
+
+  @@unique([babyId, vaccineId])
+  @@index([dueDate, status])
+  @@map("vaccination_schedule")
+}
+
+model AvailableSlot {
+  id         String   @id @default(uuid())
+  hospitalId String
+  slotDate   DateTime @db.Date
+  startTime  String
+  endTime    String
+  capacity   Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  hospital Hospital      @relation(fields: [hospitalId], references: [id])
+  bookings SlotBooking[]
+
+  @@unique([hospitalId, slotDate, startTime])
+  @@map("available_slots")
+}
+
+model SlotBooking {
+  id          String        @id @default(uuid())
+  scheduleId  String
+  slotId      String
+  parentId    String
+  status      BookingStatus @default(CONFIRMED)
+  checkedInAt DateTime?
+  bookedAt    DateTime      @default(now())
+
+  schedule VaccinationSchedule @relation(fields: [scheduleId], references: [id])
+  slot     AvailableSlot       @relation(fields: [slotId], references: [id])
+  parent   User                @relation(fields: [parentId], references: [id])
+
+  @@index([slotId, status])
+  @@index([parentId])
+  @@map("slot_bookings")
+}
+
+model Notification {
+  id      String              @id @default(uuid())
+  userId  String
+  type    NotificationType
+  channel NotificationChannel
+  title   String
+  body    String
+  babyId  String?
+  status  NotificationStatus  @default(SENT)
+  sentAt  DateTime            @default(now())
+  readAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("notifications")
+}
